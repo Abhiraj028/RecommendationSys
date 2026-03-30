@@ -1,0 +1,33 @@
+# Env
+.env
+.env.*
+!.env.example
+
+# Node
+**/node_modules/
+**/dist/
+**/build/
+**/.parcel-cache/
+
+# Data dumps
+/data/
+/ml-*.zip
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+.venv/
+venv/
+
+# Logs
+*.log
+logs/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

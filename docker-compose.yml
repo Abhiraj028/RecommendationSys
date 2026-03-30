@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: recs-db
+    environment:
+      POSTGRES_USER: recs
+      POSTGRES_PASSWORD: recs
+      POSTGRES_DB: recs
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+    container_name: recs-api
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://recs:recs@db:5432/recs
+      RECS_SERVICE_URL: http://recommender:8000
+      MOVIE_IMAGE_BASE_URL: https://image.tmdb.org/t/p/w342
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./apps/server:/app
+      - /app/node_modules
+    depends_on:
+      - db
+      - recommender
+
+  recommender:
+    build:
+      context: ./services/recommender
+      dockerfile: Dockerfile
+    container_name: recs-recommender
+    environment:
+      PORT: 8000
+      MODEL_PATH: /app/models/mf_model_weights.pkl
+      DATABASE_URL: postgresql://recs:recs@db:5432/recs
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/recommender:/app
+      - ./services/recommender/models:/app/models
+
+  loader:
+    build:
+      context: ./services/recommender
+      dockerfile: Dockerfile
+    container_name: recs-loader
+    environment:
+      DATABASE_URL: postgresql://recs:recs@db:5432/recs
+      ML_DATASET: latest-small
+      ML_ZIP_PATH: /app/ml-latest-small.zip
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+    command: ["python", "-m", "app.pipelines.load_movielens"]
+    volumes:
+      - ./services/recommender:/app
+    depends_on:
+      - db
+
+volumes:
+  db-data:

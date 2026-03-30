@@ -1,0 +1,61 @@
+services:
+  - type: web
+    name: recs-api
+    env: node
+    plan: free
+    region: oregon
+    rootDir: apps/server
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: recs-db
+          property: connectionString
+      - key: RECS_SERVICE_URL
+        value: https://recs-recommender.onrender.com
+      - key: MOVIE_IMAGE_BASE_URL
+        value: https://image.tmdb.org/t/p/w342
+      - key: TMDB_API_KEY
+        sync: false
+
+  - type: web
+    name: recs-recommender
+    env: python
+    plan: free
+    region: oregon
+    rootDir: services/recommender
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: recs-db
+          property: connectionString
+      - key: MODEL_PATH
+        value: models/mf_model_weights.pkl
+      - key: TMDB_API_KEY
+        sync: false
+
+  - type: static
+    name: recs-web
+    plan: free
+    region: oregon
+    rootDir: apps/web
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE
+        value: https://recs-api.onrender.com
+
+
+databases:
+  - name: recs-db
+    plan: free
+    region: oregon
