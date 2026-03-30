@@ -43,7 +43,7 @@ services:
       - key: TMDB_API_KEY
         sync: false
 
-  - type: static
+  - type: static_site
     name: recs-web
     plan: free
     region: oregon
