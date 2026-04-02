@@ -6,6 +6,11 @@ export type MovieRow = {
   genres: string[];
 };
 
+export type MovieDetailRow = MovieRow & {
+  rating_count: number | null;
+  rating_avg: number | null;
+};
+
 export const fetchMoviesByIds = async (ids: number[]) => {
   if (!ids.length) {
     return [] as MovieRow[];
@@ -21,6 +26,20 @@ export const fetchMoviesByIds = async (ids: number[]) => {
   );
 
   return result.rows as MovieRow[];
+};
+
+export const fetchMovieById = async (movieId: number) => {
+  const result = await pool.query(
+    `
+    SELECT m.movie_id, m.title, m.genres, s.rating_count, s.rating_avg
+    FROM movies m
+    LEFT JOIN movie_stats s ON s.movie_id = m.movie_id
+    WHERE m.movie_id = $1
+    `,
+    [movieId]
+  );
+
+  return (result.rows[0] as MovieDetailRow | undefined) ?? null;
 };
 
 export const fetchPopularMovies = async (limit: number) => {

@@ -31,3 +31,5 @@ logs/
 .idea/
 .vscode/
 *.swp
+
+ml-32m.zip

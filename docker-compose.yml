@@ -19,7 +19,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 4000
-      DATABASE_URL: postgresql://recs:recs@db:5432/recs
+      DATABASE_URL: postgresql://recs:recs@db:5432/recs_32m
       RECS_SERVICE_URL: http://recommender:8000
       MOVIE_IMAGE_BASE_URL: https://image.tmdb.org/t/p/w342
       TMDB_API_KEY: ${TMDB_API_KEY:-}
@@ -40,7 +40,7 @@ services:
     environment:
       PORT: 8000
       MODEL_PATH: /app/models/mf_model_weights.pkl
-      DATABASE_URL: postgresql://recs:recs@db:5432/recs
+      DATABASE_URL: postgresql://recs:recs@db:5432/recs_32m
       TMDB_API_KEY: ${TMDB_API_KEY:-}
     ports:
       - "8000:8000"

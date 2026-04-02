@@ -131,7 +131,9 @@ def main() -> None:
 
         with conn.cursor() as cursor:
             print("Truncating existing tables")
-            cursor.execute("TRUNCATE ratings, users, movies, movie_stats RESTART IDENTITY")
+            cursor.execute(
+                "TRUNCATE ratings, users, movies, movie_stats RESTART IDENTITY CASCADE"
+            )
             cursor.execute(
                 "ALTER TABLE ratings ALTER COLUMN rating TYPE NUMERIC(3,1) USING rating::numeric"
             )
