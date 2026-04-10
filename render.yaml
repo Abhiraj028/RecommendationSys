@@ -46,7 +46,6 @@ services:
   - type: web
     name: recs-web
     runtime: static
-    plan: free             # ← "free" IS valid for static sites
     rootDir: apps/web
     buildCommand: npm install && npm run build
     staticPublishPath: dist
