@@ -2,7 +2,7 @@ services:
   - type: web
     name: recs-api
     runtime: node
-    plan: free             # free web service (spins down on idle)
+    plan: starter             # free web service (spins down on idle)
     region: oregon
     rootDir: apps/server
     buildCommand: npm install && npm run build
@@ -26,7 +26,7 @@ services:
   - type: web
     name: recs-recommender
     runtime: python
-    plan: free             # free web service (spins down on idle)
+    plan: starter             # free web service (spins down on idle)
     region: oregon
     rootDir: services/recommender
     buildCommand: pip install -r requirements.txt
