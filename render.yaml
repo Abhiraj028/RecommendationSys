@@ -2,6 +2,7 @@ services:
   - type: web
     name: recs-api
     runtime: node
+    plan: free
     region: oregon
     rootDir: apps/server
     buildCommand: npm install && npm run build
@@ -25,6 +26,7 @@ services:
   - type: web
     name: recs-recommender
     runtime: python
+    plan: free
     region: oregon
     rootDir: services/recommender
     buildCommand: pip install -r requirements.txt
@@ -44,6 +46,7 @@ services:
   - type: web
     name: recs-web
     runtime: static
+    plan: free
     rootDir: apps/web
     buildCommand: npm install && npm run build
     staticPublishPath: dist
