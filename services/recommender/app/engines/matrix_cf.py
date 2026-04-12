@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import pickle
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 @dataclass
@@ -15,6 +15,13 @@ class MFWeights:
     mu: float
     user_id_map: Dict[int, int]
     movie_id_map: Dict[int, int]
+
+
+@dataclass
+class MatrixMovieScore:
+    score: float
+    basis: str
+    latent_factors: List[Tuple[int, float]]
 
 
 _CACHE: Optional[MFWeights] = None
@@ -48,10 +55,75 @@ def _dot(vec_a: List[float], vec_b: List[float]) -> float:
     return sum(a * b for a, b in zip(vec_a, vec_b))
 
 
-def score_movies(user_id: Optional[str], movie_ids: Iterable[int]) -> Dict[int, float]:
+def _to_list(values: Sequence[float]) -> List[float]:
+    return [float(value) for value in values]
+
+
+def _top_latent_factors(terms: Sequence[float], top_k: int = 5) -> List[Tuple[int, float]]:
+    pairs = [(index, float(value)) for index, value in enumerate(terms)]
+    pairs.sort(key=lambda item: abs(item[1]), reverse=True)
+    return pairs[:top_k]
+
+
+def _mapped_movie_indices(weights: MFWeights, movie_ids: Iterable[int]) -> List[int]:
+    indices: List[int] = []
+    for movie_id in movie_ids:
+        mapped = weights.movie_id_map.get(int(movie_id))
+        if mapped is None:
+            continue
+        indices.append(mapped)
+    return indices
+
+
+def _mean_vector(vectors: List[List[float]]) -> List[float]:
+    if not vectors:
+        return []
+    dims = len(vectors[0])
+    accum = [0.0] * dims
+    for vec in vectors:
+        for index, value in enumerate(vec):
+            accum[index] += float(value)
+    return [value / len(vectors) for value in accum]
+
+
+def _profile_user_vector(
+    weights: MFWeights,
+    liked_movie_ids: Iterable[int],
+    disliked_movie_ids: Iterable[int],
+) -> Optional[List[float]]:
+    liked_indices = _mapped_movie_indices(weights, liked_movie_ids)
+    disliked_indices = _mapped_movie_indices(weights, disliked_movie_ids)
+
+    if not liked_indices:
+        return None
+
+    liked_vectors = [_to_list(weights.q[index]) for index in liked_indices]
+    user_vec = _mean_vector(liked_vectors)
+
+    if disliked_indices:
+        disliked_vectors = [_to_list(weights.q[index]) for index in disliked_indices]
+        disliked_mean = _mean_vector(disliked_vectors)
+        user_vec = [u - 0.5 * d for u, d in zip(user_vec, disliked_mean)]
+
+    return user_vec
+
+
+def score_movies(
+    user_id: Optional[str],
+    movie_ids: Iterable[int],
+    liked_movie_ids: Iterable[int] = (),
+    disliked_movie_ids: Iterable[int] = (),
+) -> Dict[int, MatrixMovieScore]:
     weights = _load_weights()
     if not weights:
-        return {mid: 0.0 for mid in movie_ids}
+        return {
+            int(mid): MatrixMovieScore(
+                score=0.0,
+                basis="matrix factors unavailable (weights missing)",
+                latent_factors=[],
+            )
+            for mid in movie_ids
+        }
 
     mapped_user = None
     if user_id is not None:
@@ -60,21 +132,46 @@ def score_movies(user_id: Optional[str], movie_ids: Iterable[int]) -> Dict[int, 
         except ValueError:
             mapped_user = None
 
-    scores: Dict[int, float] = {}
+    user_vector: Optional[List[float]] = None
+    user_bias = 0.0
+    if mapped_user is not None:
+        user_vector = _to_list(weights.p[mapped_user])
+        user_bias = float(weights.bu[mapped_user]) if weights.bu is not None else 0.0
+        basis = "matrix factors (explicit user embedding)"
+    else:
+        user_vector = _profile_user_vector(weights, liked_movie_ids, disliked_movie_ids)
+        basis = (
+            "matrix factors (profile inferred from likes/dislikes)"
+            if user_vector is not None
+            else "matrix bias terms only (no user profile)"
+        )
+
+    scores: Dict[int, MatrixMovieScore] = {}
 
     for movie_id in movie_ids:
-        mapped_movie = weights.movie_id_map.get(movie_id)
+        int_movie_id = int(movie_id)
+        mapped_movie = weights.movie_id_map.get(int_movie_id)
         if mapped_movie is None:
             continue
 
         base = weights.mu + (weights.bi[mapped_movie] if weights.bi is not None else 0.0)
 
-        if mapped_user is None:
-            scores[movie_id] = base
+        if user_vector is None:
+            scores[int_movie_id] = MatrixMovieScore(
+                score=float(base),
+                basis=basis,
+                latent_factors=[],
+            )
             continue
 
-        user_bias = weights.bu[mapped_user] if weights.bu is not None else 0.0
-        factor_score = _dot(weights.p[mapped_user], weights.q[mapped_movie])
-        scores[movie_id] = base + user_bias + factor_score
+        movie_vector = _to_list(weights.q[mapped_movie])
+        latent_terms = [u * v for u, v in zip(user_vector, movie_vector)]
+        factor_score = _dot(user_vector, movie_vector)
+
+        scores[int_movie_id] = MatrixMovieScore(
+            score=float(base + user_bias + factor_score),
+            basis=basis,
+            latent_factors=_top_latent_factors(latent_terms),
+        )
 
     return scores

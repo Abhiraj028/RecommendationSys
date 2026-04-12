@@ -30,10 +30,21 @@ type RecommendationModel =
   | "matrix-cf"
   | "neural-cf";
 
+type RecommendationFactor = {
+  index: number;
+  contribution: number;
+};
+
+type RecommendationExplain = {
+  basis?: string;
+  latentFactors?: RecommendationFactor[];
+};
+
 type RecommendationItem = {
   movieId: number;
   score: number;
   reason: string;
+  explain?: RecommendationExplain;
 };
 
 type RecommendationRow = {
@@ -107,6 +118,36 @@ const labelForModel = (model: RecommendationModel) => {
     default:
       return model;
   }
+};
+
+const basisForModel = (model: RecommendationModel) => {
+  switch (model) {
+    case "baseline":
+      return "Based on Bayesian popularity and your liked/disliked genre signal.";
+    case "user-user":
+      return "Based on ratings from users whose taste profile overlaps with your picks.";
+    case "item-item":
+      return "Based on item-to-item similarity against your liked/disliked anchor movies.";
+    case "matrix-cf":
+      return "Based on matrix factorization latent factors and bias terms.";
+    case "neural-cf":
+      return "Based on NeuMF neural embeddings and MLP interaction layers.";
+    default:
+      return "Based on collaborative ranking signals.";
+  }
+};
+
+const rowBasisLine = (row: RecommendationRow) => {
+  return row.items[0]?.explain?.basis ?? row.items[0]?.reason ?? basisForModel(row.model);
+};
+
+const latentSummaryFactors = (row: RecommendationRow) => {
+  if (row.model !== "matrix-cf" && row.model !== "neural-cf") {
+    return [] as RecommendationFactor[];
+  }
+
+  const factors = row.items[0]?.explain?.latentFactors ?? [];
+  return factors.slice(0, 5);
 };
 
 const fetchJson = async <T,>(path: string, init?: RequestInit): Promise<T> => {
@@ -551,6 +592,26 @@ const HomePage = ({
               <h3>{labelForModel(row.model)}</h3>
               <span className="tag">{row.items.length} picks</span>
             </div>
+            <div className="row-meta">
+              <p className="row-basis-chip">{rowBasisLine(row)}</p>
+              {latentSummaryFactors(row).length ? (
+                <div className="row-latent-strip">
+                  <span className="row-latent-label">top latent factors</span>
+                  {latentSummaryFactors(row).map((factor) => {
+                    const sign = factor.contribution >= 0 ? "+" : "";
+                    return (
+                      <span
+                        key={`${row.model}-f-${factor.index}`}
+                        className="row-latent-chip"
+                      >
+                        f{factor.index}:{sign}
+                        {factor.contribution.toFixed(3)}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
             <div className="row-scroll">
               {row.items.map((item) => {
                 const movie = movieMap[item.movieId];
@@ -906,30 +967,6 @@ const BarChart = ({ data }: BarChartProps) => {
         </div>
       ))}
     </div>
-  );
-};
-
-type SparklineProps = {
-  data: number[];
-};
-
-const Sparkline = ({ data }: SparklineProps) => {
-  if (!data.length) {
-    return <div className="empty">No data.</div>;
-  }
-  const max = Math.max(...data);
-  const denom = Math.max(1, data.length - 1);
-  const points = data
-    .map((value, index) => {
-      const x = (index / denom) * 100;
-      const y = 100 - (value / max) * 100;
-      return `${x},${y}`;
-    })
-    .join(" ");
-  return (
-    <svg className="sparkline" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <polyline points={points} fill="none" />
-    </svg>
   );
 };
 

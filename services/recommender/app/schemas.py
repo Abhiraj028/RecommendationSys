@@ -42,6 +42,19 @@ class RecommendationItem(BaseModel):
     movie_id: int
     score: float
     reason: str
+    explain: Optional["RecommendationExplain"] = None
+
+
+class FactorContribution(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_to_camel)
+    index: int
+    contribution: float
+
+
+class RecommendationExplain(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_to_camel)
+    basis: Optional[str] = None
+    latent_factors: List[FactorContribution] = Field(default_factory=list)
 
 
 class RecommendationResponse(BaseModel):

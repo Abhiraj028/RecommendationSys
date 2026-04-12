@@ -39,10 +39,21 @@ export type RecommendationRowsResponse = {
   }>;
 };
 
+export type RecommendationFactor = {
+  index: number;
+  contribution: number;
+};
+
+export type RecommendationExplain = {
+  basis?: string;
+  latentFactors?: RecommendationFactor[];
+};
+
 export type RecommendationItem = {
   movieId: number;
   score: number;
   reason: string;
+  explain?: RecommendationExplain;
 };
 
 export type RecommendationResponse = {
