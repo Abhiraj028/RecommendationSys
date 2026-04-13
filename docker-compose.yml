@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: recs
       POSTGRES_DB: recs
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
 
@@ -43,7 +43,7 @@ services:
       DATABASE_URL: postgresql://recs:recs@db:5432/recs_32m
       TMDB_API_KEY: ${TMDB_API_KEY:-}
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./services/recommender:/app
       - ./services/recommender/models:/app/models
