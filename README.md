@@ -1,74 +1,79 @@
 # Cutlist Lab
 
-MovieLens-powered recommendation studio with:
+Cutlist Lab is a MovieLens-based recommendation project with three services working together:
+
 - React frontend
 - Express API
-- FastAPI recommender service
-- PostgreSQL data store
+- FastAPI recommender
+- Postgres database
 
-This README is a practical runbook for:
-- local setup
-- loading MovieLens data
-- exposing the app publicly from your own laptop using Cloudflare quick tunnels
+This guide helps you do two things fast:
 
-## Architecture
+- run the project locally
+- share it publicly with Cloudflare tunnel links
+
+## What lives where
 
 - Frontend: `apps/web` (Vite + React)
 - API: `apps/server` (Node.js + Express)
 - Recommender: `services/recommender` (FastAPI)
-- Database: Postgres (`db` service in Docker Compose)
+- Database: Postgres via Docker Compose (`db` service)
 
 Default ports:
+
 - Frontend: `5173`
 - API: `4000`
 - Recommender: `8000`
 - Postgres: `5432`
 
-## Prerequisites
+## Before you start
+
+Required:
 
 - Docker + Docker Compose plugin
 - Node.js 20+ and npm
-- Internet connection (for TMDB and Cloudflare quick tunnel)
+- Internet access (MovieLens download + Cloudflare tunnel)
 
 Optional:
-- TMDB API key for posters/reviews
+
+- TMDB key for richer metadata (posters, reviews)
 
 ```bash
 export TMDB_API_KEY=YOUR_KEY
 ```
 
-## 1) Start Backend Services
+## 1. Start backend services
 
-From repo root:
+From the repo root:
 
 ```bash
 docker compose up -d --build db recommender api
 ```
 
-Check health:
+Quick health check:
 
 ```bash
 curl -sS http://localhost:4000/health
 ```
 
-Expected:
+Expected response:
 
 ```json
 {"ok":true}
 ```
 
-## 2) Initialize and Load Database
+## 2. Load MovieLens data into the correct DB
 
-Important: API and recommender currently point to `recs_32m` in `docker-compose.yml`, while loader defaults to `recs`.
-To avoid empty results, load into the same DB used by API (`recs_32m`).
+Important detail: API and recommender are configured to use `recs_32m`, while the loader defaults to `recs`.
+If you skip this, recommendations may look empty.
 
-Create DB once (ignore error if it already exists):
+Create `recs_32m` once (safe if it already exists):
 
 ```bash
 docker exec recs-db psql -U recs -d postgres -c "CREATE DATABASE recs_32m;"
 ```
 
-Load latest-small dataset into `recs_32m`:
+Load `latest-small` into `recs_32m`:
 
 ```bash
 docker compose run --rm \
@@ -79,7 +84,7 @@ docker compose run --rm \
   loader
 ```
 
-## 3) Start Frontend Locally
+## 3. Run the frontend locally
 
 In a new terminal:
 
@@ -89,89 +94,92 @@ npm install
 VITE_API_BASE=http://127.0.0.1:4000 npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
-Open:
-- http://localhost:5173
+Open `http://localhost:5173`.
 
-## 4) Expose Public URLs From Your Laptop (No Card)
+## 4. Make it public with Cloudflare (quick tunnels)
 
-This creates two temporary public URLs (one for API, one for frontend).
-Keep these processes running.
+You will create two public URLs:
 
-### 4.1 API quick tunnel
+- one for API
+- one for frontend
 
-In a new terminal:
+Keep these tunnel processes running while you want the app online.
+
+### 4.1 Start public API tunnel
+
+In another terminal:
 
 ```bash
 docker run --rm --network host cloudflare/cloudflared:latest tunnel --url http://localhost:4000
 ```
 
-Copy the generated `https://...trycloudflare.com` URL for API.
+Copy the generated `https://...trycloudflare.com` URL. This is your public API.
 
-### 4.2 Frontend quick tunnel
+### 4.2 Restart frontend to use that public API URL
 
-In a new terminal:
-
-```bash
-docker run --rm --add-host host.docker.internal:host-gateway cloudflare/cloudflared:latest tunnel --url http://host.docker.internal:5173
-```
-
-Copy the generated `https://...trycloudflare.com` URL for frontend.
-
-### 4.3 Make frontend call the public API URL
-
-If your API tunnel URL changed, restart frontend with the new API base:
+If your API tunnel URL changed, restart frontend with the updated base URL:
 
 ```bash
 cd apps/web
 VITE_API_BASE=https://YOUR_API_TUNNEL.trycloudflare.com npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
-Use the frontend tunnel URL in browser from any network.
+### 4.3 Start public frontend tunnel
 
-## 5) Sanity Checks
+In one more terminal:
 
-API should work:
+```bash
+docker run --rm --add-host host.docker.internal:host-gateway cloudflare/cloudflared:latest tunnel --url http://host.docker.internal:5173
+```
+
+Copy that `https://...trycloudflare.com` URL. Share this frontend URL.
+
+## 5. Verify public access
+
+API check:
 
 ```bash
 curl -sS https://YOUR_API_TUNNEL.trycloudflare.com/health
 ```
 
-Frontend should return HTML:
+Frontend check:
 
 ```bash
 curl -sSI https://YOUR_FRONTEND_TUNNEL.trycloudflare.com/ | head -n 5
 ```
 
-## Common Issues
+## Troubleshooting
 
-### Seeing JSON at URL instead of app
+### I only see JSON, not the app
 
-You opened API URL, not frontend URL.
+You opened the API tunnel URL. Open the frontend tunnel URL instead.
 
-### Frontend tunnel returns 502
+### Frontend tunnel gives 502
 
-- Ensure Vite is running on `5173`
-- Use `host.docker.internal:5173` in frontend tunnel command (not `127.0.0.1` from inside Docker)
+- Make sure Vite is running on `5173`
+- Use `host.docker.internal:5173` in the tunnel command for frontend
 
-### Frontend tunnel returns 403 "host not allowed"
+### Frontend tunnel gives 403 host error
 
-Vite host checks block random tunnel domains unless allowed. This repo is configured for this in `apps/web/vite.config.ts`.
+Vite blocks unknown hosts unless allowed. This project already includes the needed config in `apps/web/vite.config.ts`.
 
-### CSP/extension warnings in browser console
+### Browser console shows CSP or extension warnings
 
-These are often extension-side (`content.js`) and not backend failures. Validate with API health endpoint.
+Many of these are extension-related (`content.js`) and not a backend issue. Confirm with the API health endpoint first.
 
-## Operational Notes
+## Reality of quick tunnels
 
-- Quick tunnel URLs are temporary and can change when restarted.
-- App is reachable globally only while:
-  - laptop is on
-  - internet is available
-  - backend containers are running
-  - frontend dev server is running
-  - cloudflared processes are running
+Quick tunnel URLs are temporary and may change after restart. The app stays public only while:
 
-## Optional: Dataset Backup and Restore
+- your laptop is on
+- Docker services are running
+- frontend dev server is running
+- cloudflared tunnel processes are running
+- internet remains connected
+
+If you need a stable URL and custom domain, move to a named Cloudflare tunnel + DNS route.
+
+## Optional backup and restore
 
 Backup:
 
@@ -181,7 +189,7 @@ docker exec recs-db pg_dump -U recs -d recs_32m -F c -f /tmp/recs_32m.dump
 docker cp recs-db:/tmp/recs_32m.dump data/backup/recs_32m.dump
 ```
 
-Restore into `recs_32m`:
+Restore:
 
 ```bash
 docker cp data/backup/recs_32m.dump recs-db:/tmp/recs_32m.dump
